@@ -22,4 +22,5 @@ go.work
 
 # test
 run.bat
-build/*
+build.bat
+acrnm/*

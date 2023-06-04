@@ -7,12 +7,6 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-var products = make(ProductList)
-
-type Handler func(string, ...Variant)
-
-var UpdateHandler, ModifyHandler, SoldoutHandler Handler
-
 // 单行商品
 type Line struct {
 	Name      string
@@ -52,8 +46,6 @@ func (lines *Lines) Sort() *Lines {
 	return lines
 }
 
-var TotalLines Lines
-
 // 获取文本
 func Text(s *goquery.Selection, xpath string) string {
 	return s.Find(xpath).Text()
@@ -65,7 +57,7 @@ func Exec(s *goquery.Selection, xpath string, f func(int, *goquery.Selection)) {
 }
 
 // 获取商品细节变动
-func GetDetail(product *Product, price string) func(int, *goquery.Selection) {
+func (spider *Spider) GetDetail(product *Product, price string) func(int, *goquery.Selection) {
 	return func(_ int, s *goquery.Selection) {
 		variants := makeVariants(Text(s, config.XPath.Color), Text(s, config.XPath.Size), price)
 		for _, v := range variants {
@@ -73,15 +65,11 @@ func GetDetail(product *Product, price string) func(int, *goquery.Selection) {
 			if !ok {
 				product.Insert(v)
 				log.Infof("上新 %v %v %v %v", product.Name, v.Color, v.Size, v.Price)
-				if UpdateHandler != nil {
-					go UpdateHandler(product.Name, v)
-				}
+				go spider.UpdateHandler(product.Name, v)
 			} else {
 				if variant.Price != v.Price && variant.Soldout {
 					log.Infof("价格变化 %v %v %v %v -> %v", product.Name, v.Color, v.Size, variant.Price, v.Price)
-					if ModifyHandler != nil {
-						go ModifyHandler(product.Name, *variant, v)
-					}
+					go spider.ModifyHandler(product.Name, *variant, v)
 					product.Modify(variant, v.Price)
 				}
 				variant.Soldout = false
@@ -91,45 +79,43 @@ func GetDetail(product *Product, price string) func(int, *goquery.Selection) {
 }
 
 // 获取某一行商品数据
-func GetRow(_ int, s *goquery.Selection) {
+func (spider *Spider) GetRow(_ int, s *goquery.Selection) {
 	price := Text(s, config.XPath.Price)
 	if price == "" {
 		return
 	}
 	name := Text(s, config.XPath.Name)
-	TotalLines = append(TotalLines, Line{name, price, s})
+	spider.TotalLines = append(spider.TotalLines, Line{name, price, s})
 }
 
 // 获取全部商品数据
-func GetData() {
-	doc := Spider()
+func (spider *Spider) GetData() {
+	doc := Request()
 	if doc == nil {
 		return
 	}
 
 	// 先获取所有商品 再根据名称和价格排序
-	TotalLines = make(Lines, 0)
-	Exec(doc.Selection, config.XPath.List, GetRow)
+	spider.TotalLines = make(Lines, 0)
+	Exec(doc.Selection, config.XPath.List, spider.GetRow)
 
 	// 解析单行信息
 	var product *Product
-	for _, line := range *TotalLines.Sort() {
+	for _, line := range *spider.TotalLines.Sort() {
 		if product == nil || product.Name != line.Name {
-			product = products.Get(line.Name)
+			product = spider.Products.Get(line.Name)
 		}
-		Exec(line.Selection, config.XPath.Variants, GetDetail(product, line.Price))
+		Exec(line.Selection, config.XPath.Variants, spider.GetDetail(product, line.Price))
 	}
 
 	// 查找下架商品
-	for name, product := range products {
+	for name, product := range spider.Products {
 		var removeList []int
 		for i, variant := range product.Variants {
 			if variant.Soldout {
 				log.Infof("下架 %v %v %v %v", product.Name, variant.Color, variant.Size, variant.Price)
 				removeList = append(removeList, i)
-				if SoldoutHandler != nil {
-					go SoldoutHandler(name, variant)
-				}
+				go spider.SoldoutHandler(name, variant)
 			} else {
 				// 每次上新或者重新获取到的时候会把这个设置为 false 例如 Line40
 				// 在获取完一次数据后就不会被上面 SoldoutHandler 检测到
@@ -143,28 +129,42 @@ func GetData() {
 	log.Infoln("更新完成")
 }
 
+type Handler func(string, ...Variant)
+
+func None(string, ...Variant) {}
+
+type Spider struct {
+	UpdateHandler  Handler
+	ModifyHandler  Handler
+	SoldoutHandler Handler
+	Products       ProductList
+	TotalLines     Lines
+}
+
 // 设置处理器
-func SetHandler(name string, handler Handler) {
+func (spider *Spider) SetHandler(name string, handler Handler) {
 	switch name {
 	case "update":
-		UpdateHandler = handler
+		spider.UpdateHandler = handler
 	case "modify":
-		ModifyHandler = handler
+		spider.ModifyHandler = handler
 	case "soldout":
-		SoldoutHandler = handler
+		spider.SoldoutHandler = handler
 	}
 }
 
-func None(*ProductList) {}
-
 // 轮询
-func Interval(initial func(*ProductList), finish func(*ProductList)) {
+func (spider *Spider) Interval(emit func()) {
 	ticker := time.NewTicker(time.Duration(config.Interval) * time.Second)
 	defer ticker.Stop()
-	GetData()
-	initial(&products)
 	for range ticker.C {
-		GetData()
-		finish(&products)
+		spider.GetData()
+		go emit()
 	}
+}
+
+func NewSpider() *Spider {
+	spider := Spider{None, None, None, make(ProductList), nil}
+	spider.GetData()
+	return &spider
 }

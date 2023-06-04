@@ -51,7 +51,7 @@ func checkErr(err error) bool {
 }
 
 // 爬虫
-func Spider() (doc *goquery.Document) {
+func Request() (doc *goquery.Document) {
 	resp, err := http.Get(config.Url)
 	if !checkErr(err) {
 		return nil
