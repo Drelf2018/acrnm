@@ -2,24 +2,26 @@ package acrnm
 
 import (
 	"flag"
-	"io/ioutil"
 
+	"github.com/Drelf2018/initial"
+	"github.com/Drelf2020/utils"
 	"gopkg.in/yaml.v2"
 )
 
-var config = GetConfig()
+type XPath struct {
+	List     string `default:"tbody > .m-product-table__row"`
+	Name     string `default:".m-product-table__title_cell span"`
+	Price    string `default:".m-product-table__price_cell span"`
+	Variants string `default:".m-product-table__variant_cell span[class=o-item-row]"`
+	Color    string `default:"div > span"`
+	Size     string `default:"div + span"`
+}
 
 type Config struct {
-	Interval float64
-	Url      string
-	XPath    struct {
-		List     string
-		Name     string
-		Price    string
-		Variants string
-		Color    string
-		Size     string
-	}
+	Interval float64 `default:"10"`
+	Url      string  `default:"https://acrnm.com/?sort=default&filter=txt"`
+	XPath    XPath   `default:"initial.Default"`
+	Chrome   Chrome  `default:"initial.Default"`
 }
 
 // 获取命令行参数
@@ -30,15 +32,12 @@ func FilePath() (filepath string) {
 }
 
 // 读取配置文件
-func GetConfig() (conf Config) {
-	yamlFile, err := ioutil.ReadFile(FilePath())
-	if !checkErr(err) {
-		panic("配置文件读取失败")
+func ReadConfig() *Config {
+	var conf Config
+	s := utils.ReadFile(FilePath())
+	err := yaml.Unmarshal([]byte(s), &conf)
+	if utils.LogErr(err) {
+		panic(err)
 	}
-
-	err = yaml.Unmarshal(yamlFile, &conf)
-	if !checkErr(err) {
-		panic("配置文件解析失败")
-	}
-	return
+	return initial.Default(&conf)
 }

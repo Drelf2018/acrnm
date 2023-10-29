@@ -1,0 +1,9 @@
+interval: 5
+url: https://acrnm.com/?sort=default&filter=txt
+xpath:
+  list: tbody > .m-product-table__row
+  name: .m-product-table__title_cell span
+  price: .m-product-table__price_cell span
+  variants: .m-product-table__variant_cell span[class=o-item-row]
+  color: div > span
+  size: div + span
