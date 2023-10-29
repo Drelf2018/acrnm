@@ -65,7 +65,6 @@ func (p *Parser) Parse(r io.Reader) {
 func (p *Parser) Run(interval float64) {
 	defer Close()
 	event.Heartbeat(interval, interval, func(e *event.Event, count int) {
-		p.Pre.Delete(&Product{Name: "SAC-J6010", Price: "1,883.00 EUR"})
 		r, err := Refresh()
 		if utils.LogErr(err) {
 			return
