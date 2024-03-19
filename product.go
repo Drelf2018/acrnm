@@ -1,38 +1,59 @@
 package acrnm
 
 import (
-	"bytes"
 	"fmt"
-	"sync"
+	"strings"
+
+	"github.com/Drelf2018/request"
 )
+
+type Variant struct {
+	Color string
+	Size  string
+}
 
 // 商品
 type Product struct {
-	Name     string `cmps:"1"`
-	Price    string `cmps:"2"`
-	Variants sync.Map
+	Name     string
+	Href     string
+	Price    string
+	Variants []Variant
 }
 
-func (p *Product) Variant() (r []string) {
-	p.Variants.Range(func(key, value any) bool {
-		r = append(r, fmt.Sprintf("%v %v", key, value))
-		return true
-	})
-	return
+func (p *Product) Variant() string {
+	var r []string
+	for _, variant := range p.Variants {
+		r = append(r, "- **"+variant.Color+"**: "+variant.Size)
+	}
+	return strings.Join(r, "\n\n")
+}
+
+func (p *Product) MapKey() string {
+	return p.Name
+}
+
+func (p *Product) Equal(n *Product) bool {
+	if p.Name != n.Name {
+		return false
+	}
+	if p.Price != n.Price {
+		return false
+	}
+	if len(p.Variants) != len(n.Variants) {
+		return false
+	}
+	return true
+}
+
+func (p *Product) Image() string {
+	s := request.Get(fmt.Sprintf("%s/image%s", url, p.Href)).Text()
+	return s[1 : len(s)-1]
+}
+
+func (p *Product) MdImage() string {
+	return fmt.Sprintf("![%s](%s)", p.Name, p.Image())
 }
 
 func (p *Product) String() string {
-	buf := bytes.NewBufferString("Product(")
-	buf.WriteString(p.Name)
-	buf.WriteString(", ")
-	buf.WriteString(p.Price)
-	p.Variants.Range(func(key, value any) bool {
-		buf.WriteString(", ")
-		buf.WriteString(key.(string))
-		buf.WriteString(": ")
-		buf.WriteString(value.(string))
-		return true
-	})
-	buf.WriteString(")")
-	return buf.String()
+	return fmt.Sprintf("Product(%s, %s)", p.Name, p.Price)
 }
