@@ -20,6 +20,9 @@ func (m *Map[K, V]) Len() int {
 }
 
 func (m *Map[K, V]) Updates(vals []V) (newVals, diffVals, delVals []V) {
+	if 2*len(vals) <= m.Len() {
+		return
+	}
 	keys := make([]K, 0, len(vals))
 	for _, val := range vals {
 		k := val.MapKey()

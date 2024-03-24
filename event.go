@@ -22,7 +22,6 @@ const (
 )
 
 var (
-	// evt        = event.Default[*Product]()
 	session, _ = request.NewTypeSession[[]*Product](http.MethodGet, url)
 	m          = NewMap(session.Must()...)
 )
