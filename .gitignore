@@ -20,7 +20,5 @@
 # Go workspace file
 go.work
 
-# test
-run.bat
-build.bat
+# build
 acrnm/*

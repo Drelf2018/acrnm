@@ -1,11 +1,18 @@
 package acrnm
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/Drelf2018/request"
+	"github.com/Drelf2018/req"
 )
+
+type AcrnmAPI struct {
+	req.Get
+}
+
+func (AcrnmAPI) RawURL() string {
+	return "http://acrnm.nana7mi.link"
+}
 
 type Variant struct {
 	Color string
@@ -20,40 +27,47 @@ type Product struct {
 	Variants []Variant
 }
 
-func (p *Product) Variant() string {
-	var r []string
-	for _, variant := range p.Variants {
-		r = append(r, "- **"+variant.Color+"**: "+variant.Size)
-	}
-	return strings.Join(r, "\n\n")
-}
-
-func (p *Product) MapKey() string {
-	return p.Name
-}
-
 func (p *Product) Equal(n *Product) bool {
-	if p.Name != n.Name {
+	if n == nil {
+		return false
+	}
+	if p.Href != n.Href {
 		return false
 	}
 	if p.Price != n.Price {
 		return false
 	}
-	if len(p.Variants) != len(n.Variants) {
+	m := make(map[string][]string)
+	for _, v := range n.Variants {
+		m[v.Color] = append(m[v.Color], v.Size)
+	}
+outer:
+	for _, v := range p.Variants {
+		for _, s := range m[v.Color] {
+			if v.Size == s {
+				continue outer
+			}
+		}
 		return false
 	}
 	return true
 }
 
-func (p *Product) Image() string {
-	s := request.Get(fmt.Sprintf("%s/image%s", url, p.Href)).Text()
-	return s[1 : len(s)-1]
+func (p Product) String() string {
+	build := &strings.Builder{}
+	build.WriteString(p.Name)
+	build.WriteByte('(')
+	build.WriteString(p.Price)
+	for _, variant := range p.Variants {
+		build.WriteString(", ")
+		build.WriteString(variant.Color)
+		build.WriteByte(' ')
+		build.WriteString(variant.Size)
+	}
+	build.WriteByte(')')
+	return build.String()
 }
 
-func (p *Product) MdImage() string {
-	return fmt.Sprintf("![%s](%s)", p.Name, p.Image())
-}
-
-func (p *Product) String() string {
-	return fmt.Sprintf("Product(%s, %s)", p.Name, p.Price)
+func GetAcrnmAPI() ([]*Product, error) {
+	return req.Result[[]*Product](AcrnmAPI{})
 }
